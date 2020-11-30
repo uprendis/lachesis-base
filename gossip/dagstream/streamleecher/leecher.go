@@ -107,7 +107,7 @@ func (d *Leecher) selectSessionPeerCandidates() []string {
 	}
 	sinceEnd := time.Since(d.session.endTime)
 	waitUntilProcessed := d.session.try == 0 || sinceEnd > d.cfg.MinSessionRestart
-	hasSomethingToSync := len(futureEpochPeers) > 0 || sinceEnd >= d.cfg.MaxSessionRestart
+	hasSomethingToSync := d.session.try == 0 || len(futureEpochPeers) > 0 || sinceEnd >= d.cfg.MaxSessionRestart
 	if waitUntilProcessed && hasSomethingToSync {
 		if len(futureEpochPeers) > 0 && (d.session.try%5 != 4 || len(currentEpochPeers) == 0) {
 			// normally work only with peers which have a higher epoch
