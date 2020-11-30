@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Fantom-foundation/lachesis-base/eventcheck/epochcheck"
 	"github.com/Fantom-foundation/lachesis-base/hash"
 	"github.com/Fantom-foundation/lachesis-base/inter/dag"
 	"github.com/Fantom-foundation/lachesis-base/utils"
@@ -88,9 +87,6 @@ type Callback struct {
 	PeerMisbehaviour func(peer string, err error) bool
 
 	ReleasedEvent func(e dag.Event, peer string, err error)
-
-	HeavyCheck HeavyCheck
-	LightCheck LightCheck
 }
 
 // New creates a event fetcher to retrieve events based on hash announcements.
@@ -132,8 +128,7 @@ func (f *Fetcher) Overloaded() bool {
 func (f *Fetcher) overloaded() bool {
 	return len(f.inject) > f.cfg.MaxQueuedEventsBatches*3/4 ||
 		len(f.notifications) > f.cfg.MaxQueuedHashesBatches*3/4 ||
-		len(f.announced) > f.cfg.HashLimit || // protected by stateMu
-		f.callback.HeavyCheck.Overloaded()
+		len(f.announced) > f.cfg.HashLimit // protected by stateMu
 }
 
 // OverloadedPeer returns true if too much events are being processed or requested from the peer
@@ -180,48 +175,7 @@ func (f *Fetcher) Notify(peer string, hashes hash.Events, time time.Time, fetchE
 	return nil
 }
 
-// Enqueue tries to fill gaps the fetcher's future import queue.
-func (f *Fetcher) Enqueue(peer string, inEvents dag.Events, t time.Time, fetchEvents EventsRequesterFn) error {
-	// Filter already known events
-	notKnownEvents := make(dag.Events, 0, len(inEvents))
-	for _, e := range inEvents {
-		if len(f.callback.OnlyInterested(hash.Events{e.ID()})) == 0 {
-			f.callback.ReleasedEvent(e, peer, epochcheck.ErrNotRelevant)
-			continue
-		}
-		notKnownEvents = append(notKnownEvents, e)
-	}
-
-	// Run light checks right away
-	passed := make(dag.Events, 0, len(notKnownEvents))
-	for _, e := range notKnownEvents {
-		err := f.callback.LightCheck(e)
-		if err != nil {
-			f.callback.PeerMisbehaviour(peer, err)
-			f.callback.ReleasedEvent(e, peer, err)
-		} else {
-			passed = append(passed, e)
-		}
-	}
-
-	// Run heavy check in parallel
-	return f.callback.HeavyCheck.Enqueue(passed, func(events dag.Events, errs []error) {
-		// Check errors of heavy check
-		passed := make(dag.Events, 0, len(events))
-		for i, err := range errs {
-			if err != nil {
-				f.callback.PeerMisbehaviour(peer, err)
-				f.callback.ReleasedEvent(events[i], peer, err)
-			} else {
-				passed = append(passed, events[i])
-			}
-		}
-		// after all the checks, actually enqueue the events into fetcher
-		_ = f.enqueue(peer, passed, t, fetchEvents)
-	})
-}
-
-func (f *Fetcher) enqueue(peer string, events dag.Events, time time.Time, fetchEvents EventsRequesterFn) error {
+func (f *Fetcher) Enqueue(peer string, events dag.Events, time time.Time, fetchEvents EventsRequesterFn) error {
 	// divide big batch into smaller ones
 	for start := 0; start < len(events); start += f.cfg.MaxEventsBatch {
 		end := len(events)
