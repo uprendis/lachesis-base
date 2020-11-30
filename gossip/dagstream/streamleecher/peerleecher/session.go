@@ -73,7 +73,6 @@ func New(wg *sync.WaitGroup, cfg EpochDownloaderConfig, callback EpochDownloader
 // Start boots up the announcement based synchroniser, accepting and processing
 // hash notifications and event fetches until termination requested.
 func (d *PeerLeecher) Start() {
-	println("start")
 	for i := 0; i < d.cfg.ParallelChunksDownload; i++ {
 		d.wg.Add(1)
 		go func() {
@@ -99,7 +98,6 @@ func (d *PeerLeecher) Terminate() {
 	d.quitMu.Lock()
 	defer d.quitMu.Unlock()
 	if !d.done {
-		println("terminate")
 		close(d.quit)
 		d.done = true
 	}
@@ -111,7 +109,6 @@ func (d *PeerLeecher) Stopped() bool {
 
 // NotifyPackInfo injects new pack infos from a peer
 func (d *PeerLeecher) NotifyChunkReceived(last hash.Event, total dag.Metric) error {
-	println("NotifyChunkReceived")
 	op := &receivedChunk{
 		last:  last,
 		total: total,
@@ -120,14 +117,12 @@ func (d *PeerLeecher) NotifyChunkReceived(last hash.Event, total dag.Metric) err
 	case d.notifyReceivedChunk <- op:
 		return nil
 	case <-d.quit:
-		println("terminated")
 		return errTerminated
 	}
 }
 
 // Loop is the main leecher's loop, checking and processing various notifications
 func (d *PeerLeecher) loop() {
-	println("PeerLeecher", d.cfg.RecheckInterval.String())
 	// Iterate the event fetching until a quit is requested
 	syncTicker := time.NewTicker(d.cfg.RecheckInterval)
 
@@ -135,14 +130,12 @@ func (d *PeerLeecher) loop() {
 		// Wait for an outside event to occur
 		select {
 		case <-d.quit:
-			println("quit")
 			// terminating, abort all operations
 			return
 
 		case op := <-d.notifyReceivedChunk:
 
 			if d.done {
-				println("done")
 				d.Terminate()
 				continue
 			}
@@ -159,7 +152,6 @@ func (d *PeerLeecher) loop() {
 
 func (d *PeerLeecher) routine() {
 	if d.callback.Done() {
-		println("done")
 		d.Terminate()
 		return
 	}
@@ -170,11 +162,9 @@ func (d *PeerLeecher) routine() {
 func (d *PeerLeecher) sweepProcessedChunks() []receivedChunk {
 	notProcessed := make([]receivedChunk, 0, len(d.processingChunks))
 	for _, op := range d.processingChunks {
-		println("not processed", op.total.Num, d.totalProcessed.Num, d.totalRequested.Num)
 		if len(d.callback.OnlyNotConnected(hash.Events{op.last})) != 0 {
 			notProcessed = append(notProcessed, op)
 		} else {
-			println("processed", op.total.Num, d.totalProcessed.Num, d.totalRequested.Num)
 			d.totalProcessed.Num += op.total.Num
 			d.totalProcessed.Size += op.total.Size
 		}

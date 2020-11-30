@@ -120,8 +120,8 @@ func (d *Leecher) selectSessionPeerCandidates() []string {
 	return selected
 }
 
-func (d *Leecher) getSessionID() uint32 {
-	return (uint32(d.epoch) << 12) ^ d.session.try
+func getSessionID(epoch idx.Epoch, try uint32) uint32 {
+	return (uint32(epoch) << 12) ^ try
 }
 
 func (d *Leecher) startSession(candidates []string) {
@@ -133,7 +133,7 @@ func (d *Leecher) startSession(candidates []string) {
 	}
 
 	session := dagstream.Session{
-		ID:    d.getSessionID(),
+		ID:    getSessionID(d.epoch, d.session.try),
 		Start: d.epoch.Bytes(),
 		Stop:  (d.epoch + 1).Bytes(),
 	}
@@ -262,7 +262,7 @@ func (d *Leecher) NotifyChunkReceived(sessionID uint32, last hash.Event, total d
 	if d.session.agent == nil {
 		return nil
 	}
-	if d.getSessionID() != sessionID {
+	if getSessionID(d.epoch, d.session.try - 1) != sessionID {
 		return nil
 	}
 

@@ -313,7 +313,6 @@ func (f *Fetcher) processInjection(op *inject, fetchTimer *time.Timer) {
 
 	parents = f.callback.OnlyInterested(parents)
 	if len(parents) != 0 {
-		println("fetch parents", len(parents))
 		f.processNotification(&announcesBatch{
 			hashes:      parents,
 			time:        op.time,
