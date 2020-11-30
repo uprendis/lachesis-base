@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Fantom-foundation/lachesis-base/eventcheck/epochcheck"
 	"github.com/Fantom-foundation/lachesis-base/hash"
 	"github.com/Fantom-foundation/lachesis-base/inter/dag"
 	"github.com/Fantom-foundation/lachesis-base/utils"
@@ -185,6 +186,7 @@ func (f *Fetcher) Enqueue(peer string, inEvents dag.Events, t time.Time, fetchEv
 	notKnownEvents := make(dag.Events, 0, len(inEvents))
 	for _, e := range inEvents {
 		if len(f.callback.OnlyInterested(hash.Events{e.ID()})) == 0 {
+			f.callback.ReleasedEvent(e, peer, epochcheck.ErrNotRelevant)
 			continue
 		}
 		notKnownEvents = append(notKnownEvents, e)
@@ -194,29 +196,24 @@ func (f *Fetcher) Enqueue(peer string, inEvents dag.Events, t time.Time, fetchEv
 	passed := make(dag.Events, 0, len(notKnownEvents))
 	for _, e := range notKnownEvents {
 		err := f.callback.LightCheck(e)
-		if err != nil && f.callback.PeerMisbehaviour(peer, err) {
-			return err
-		}
-		if err == nil {
-			passed = append(passed, e)
-		} else {
+		if err != nil {
+			f.callback.PeerMisbehaviour(peer, err)
 			f.callback.ReleasedEvent(e, peer, err)
+		} else {
+			passed = append(passed, e)
 		}
 	}
 
 	// Run heavy check in parallel
-	println("HeavyCheck.Enqueue", "num", len(passed))
 	return f.callback.HeavyCheck.Enqueue(passed, func(events dag.Events, errs []error) {
 		// Check errors of heavy check
 		passed := make(dag.Events, 0, len(events))
 		for i, err := range errs {
-			if err != nil && f.callback.PeerMisbehaviour(peer, err) {
-				return
-			}
-			if err == nil {
-				passed = append(passed, events[i])
-			} else {
+			if err != nil {
+				f.callback.PeerMisbehaviour(peer, err)
 				f.callback.ReleasedEvent(events[i], peer, err)
+			} else {
+				passed = append(passed, events[i])
 			}
 		}
 		// after all the checks, actually enqueue the events into fetcher
@@ -225,7 +222,6 @@ func (f *Fetcher) Enqueue(peer string, inEvents dag.Events, t time.Time, fetchEv
 }
 
 func (f *Fetcher) enqueue(peer string, events dag.Events, time time.Time, fetchEvents EventsRequesterFn) error {
-	println("enqueue", "num", len(events))
 	// divide big batch into smaller ones
 	for start := 0; start < len(events); start += f.cfg.MaxEventsBatch {
 		end := len(events)
@@ -299,7 +295,6 @@ func (f *Fetcher) processNotification(notification *announcesBatch, fetchTimer *
 }
 
 func (f *Fetcher) processInjection(op *inject, fetchTimer *time.Timer) {
-	println("processInjection")
 	// A direct event insertion was requested, try and fill any pending gaps
 	parents := make(hash.Events, 0, len(op.events))
 	for _, e := range op.events {
@@ -311,7 +306,6 @@ func (f *Fetcher) processInjection(op *inject, fetchTimer *time.Timer) {
 			parents.Add(p)
 		}
 
-		println("psuh events", e.String())
 		f.callback.PushEvent(e, op.peer)
 		f.forgetHash(e.ID())
 		f.callback.ReleasedEvent(e, op.peer, nil)
