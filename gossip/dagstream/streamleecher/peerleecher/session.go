@@ -98,6 +98,7 @@ func (d *PeerLeecher) Terminate() {
 	d.quitMu.Lock()
 	defer d.quitMu.Unlock()
 	if !d.done {
+		println("terminate")
 		close(d.quit)
 		d.done = true
 	}
@@ -117,6 +118,7 @@ func (d *PeerLeecher) NotifyChunkReceived(last hash.Event, total dag.Metric) err
 	case d.notifyReceivedChunk <- op:
 		return nil
 	case <-d.quit:
+		println("terminated")
 		return errTerminated
 	}
 }
@@ -136,6 +138,7 @@ func (d *PeerLeecher) loop() {
 		case op := <-d.notifyReceivedChunk:
 
 			if d.done {
+				println("done")
 				d.Terminate()
 				continue
 			}
@@ -152,6 +155,7 @@ func (d *PeerLeecher) loop() {
 
 func (d *PeerLeecher) routine() {
 	if d.callback.Done() {
+		println("done")
 		d.Terminate()
 		return
 	}
@@ -162,6 +166,7 @@ func (d *PeerLeecher) routine() {
 func (d *PeerLeecher) sweepProcessedChunks() []receivedChunk {
 	notProcessed := make([]receivedChunk, 0, len(d.processingChunks))
 	for _, op := range d.processingChunks {
+		println("not processed", op.total.Num, d.totalProcessed.Num, d.totalRequested.Num)
 		if len(d.callback.OnlyNotConnected(hash.Events{op.last})) != 0 {
 			notProcessed = append(notProcessed, op)
 		} else {

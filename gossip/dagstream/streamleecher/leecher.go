@@ -151,9 +151,10 @@ func (d *Leecher) startSession(candidates []string) {
 		},
 	})
 
-	d.session.startTime = time.Now()
-	d.session.lastReceived = time.Now()
-	d.session.endTime = time.Now()
+	now := time.Now()
+	d.session.startTime = now
+	d.session.lastReceived = now
+	d.session.endTime = now
 	d.session.try++
 	d.session.peer = peer
 
