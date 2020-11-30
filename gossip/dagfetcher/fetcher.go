@@ -199,12 +199,13 @@ func (f *Fetcher) Enqueue(peer string, inEvents dag.Events, t time.Time, fetchEv
 		}
 		if err == nil {
 			passed = append(passed, e)
-		} else if f.callback.ReleasedEvent != nil {
+		} else {
 			f.callback.ReleasedEvent(e, peer, err)
 		}
 	}
 
 	// Run heavy check in parallel
+	println("HeavyCheck.Enqueue", "num", len(passed))
 	return f.callback.HeavyCheck.Enqueue(passed, func(events dag.Events, errs []error) {
 		// Check errors of heavy check
 		passed := make(dag.Events, 0, len(events))
@@ -214,7 +215,7 @@ func (f *Fetcher) Enqueue(peer string, inEvents dag.Events, t time.Time, fetchEv
 			}
 			if err == nil {
 				passed = append(passed, events[i])
-			} else if f.callback.ReleasedEvent != nil {
+			} else {
 				f.callback.ReleasedEvent(events[i], peer, err)
 			}
 		}
@@ -224,6 +225,7 @@ func (f *Fetcher) Enqueue(peer string, inEvents dag.Events, t time.Time, fetchEv
 }
 
 func (f *Fetcher) enqueue(peer string, events dag.Events, time time.Time, fetchEvents EventsRequesterFn) error {
+	println("enqueue", "num", len(events))
 	// divide big batch into smaller ones
 	for start := 0; start < len(events); start += f.cfg.MaxEventsBatch {
 		end := len(events)
@@ -238,6 +240,9 @@ func (f *Fetcher) enqueue(peer string, events dag.Events, time time.Time, fetchE
 		}
 		select {
 		case <-f.quit:
+			for _, e := range op.events {
+				f.callback.ReleasedEvent(e, peer, errTerminated)
+			}
 			return errTerminated
 		case f.inject <- op:
 			continue
@@ -294,6 +299,7 @@ func (f *Fetcher) processNotification(notification *announcesBatch, fetchTimer *
 }
 
 func (f *Fetcher) processInjection(op *inject, fetchTimer *time.Timer) {
+	println("processInjection")
 	// A direct event insertion was requested, try and fill any pending gaps
 	parents := make(hash.Events, 0, len(op.events))
 	for _, e := range op.events {
@@ -305,6 +311,7 @@ func (f *Fetcher) processInjection(op *inject, fetchTimer *time.Timer) {
 			parents.Add(p)
 		}
 
+		println("psuh events", e.String())
 		f.callback.PushEvent(e, op.peer)
 		f.forgetHash(e.ID())
 		f.callback.ReleasedEvent(e, op.peer, nil)
@@ -312,6 +319,7 @@ func (f *Fetcher) processInjection(op *inject, fetchTimer *time.Timer) {
 
 	parents = f.callback.OnlyInterested(parents)
 	if len(parents) != 0 {
+		println("fetch parents", len(parents))
 		f.processNotification(&announcesBatch{
 			hashes:      parents,
 			time:        op.time,
