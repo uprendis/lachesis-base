@@ -3,7 +3,6 @@ package peerleecher
 import (
 	"errors"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Fantom-foundation/lachesis-base/hash"
@@ -39,7 +38,6 @@ type PeerLeecher struct {
 	cfg EpochDownloaderConfig
 
 	totalRequested dag.Metric
-	totalReceived  uint32
 	totalProcessed dag.Metric
 
 	processingChunks []receivedChunk
@@ -123,10 +121,6 @@ func (d *PeerLeecher) NotifyChunkReceived(last hash.Event, total dag.Metric) err
 	}
 }
 
-func (d *PeerLeecher) TotalReceived() idx.Event {
-	return idx.Event(atomic.LoadUint32(&d.totalReceived))
-}
-
 // Loop is the main leecher's loop, checking and processing various notifications
 func (d *PeerLeecher) loop() {
 	// Iterate the event fetching until a quit is requested
@@ -144,9 +138,6 @@ func (d *PeerLeecher) loop() {
 			if d.done {
 				d.Terminate()
 				continue
-			}
-			if d.totalReceived < uint32(op.total.Num) {
-				atomic.StoreUint32(&d.totalReceived, uint32(op.total.Num))
 			}
 			if len(d.processingChunks) < d.cfg.ParallelChunksDownload*2 {
 				d.processingChunks = append(d.processingChunks, *op)
@@ -174,6 +165,7 @@ func (d *PeerLeecher) sweepProcessedChunks() []receivedChunk {
 		if len(d.callback.OnlyNotConnected(hash.Events{op.last})) != 0 {
 			notProcessed = append(notProcessed, op)
 		} else {
+			println("processed", op.total.Num, d.totalProcessed.Num, d.totalRequested.Num)
 			d.totalProcessed.Num += op.total.Num
 			d.totalProcessed.Size += op.total.Size
 		}
