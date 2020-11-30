@@ -73,6 +73,7 @@ func New(wg *sync.WaitGroup, cfg EpochDownloaderConfig, callback EpochDownloader
 // Start boots up the announcement based synchroniser, accepting and processing
 // hash notifications and event fetches until termination requested.
 func (d *PeerLeecher) Start() {
+	println("start")
 	for i := 0; i < d.cfg.ParallelChunksDownload; i++ {
 		d.wg.Add(1)
 		go func() {
@@ -110,6 +111,7 @@ func (d *PeerLeecher) Stopped() bool {
 
 // NotifyPackInfo injects new pack infos from a peer
 func (d *PeerLeecher) NotifyChunkReceived(last hash.Event, total dag.Metric) error {
+	println("NotifyChunkReceived")
 	op := &receivedChunk{
 		last:  last,
 		total: total,
@@ -125,6 +127,7 @@ func (d *PeerLeecher) NotifyChunkReceived(last hash.Event, total dag.Metric) err
 
 // Loop is the main leecher's loop, checking and processing various notifications
 func (d *PeerLeecher) loop() {
+	println("PeerLeecher", d.cfg.RecheckInterval.String())
 	// Iterate the event fetching until a quit is requested
 	syncTicker := time.NewTicker(d.cfg.RecheckInterval)
 
@@ -132,6 +135,7 @@ func (d *PeerLeecher) loop() {
 		// Wait for an outside event to occur
 		select {
 		case <-d.quit:
+			println("quit")
 			// terminating, abort all operations
 			return
 
