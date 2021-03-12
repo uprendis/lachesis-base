@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/Fantom-foundation/lachesis-base/eventcheck"
 	"github.com/Fantom-foundation/lachesis-base/gossip/dagordering"
 	"github.com/Fantom-foundation/lachesis-base/hash"
 	"github.com/Fantom-foundation/lachesis-base/inter/dag"
@@ -110,6 +111,7 @@ type eventErrPair struct {
 }
 
 func (f *Processor) Enqueue(peer string, events dag.Events, ordered bool, notifyAnnounces func(hash.Events), done func()) error {
+	println("buffered", f.buffer.Total().String())
 	if !f.eventsSemaphore.Acquire(events.Metric(), f.cfg.EventsSemaphoreTimeout) {
 		return ErrBusy
 	}
@@ -179,7 +181,7 @@ func (f *Processor) process(peer string, res eventErrPair) (toRequest hash.Event
 	highestLamport := f.callback.HighestLamport()
 	maxLamportDiff := 1 + idx.Lamport(f.cfg.EventsBufferLimit.Num)
 	if res.event.Lamport() > highestLamport+maxLamportDiff {
-		f.callback.Event.Released(res.event, peer, res.err)
+		f.callback.Event.Released(res.event, peer, eventcheck.ErrSpilledEvent)
 		return hash.Events{}
 	}
 	// push event to the ordering buffer

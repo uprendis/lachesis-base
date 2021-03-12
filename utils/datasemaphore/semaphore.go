@@ -46,6 +46,7 @@ func (s *DataSemaphore) TryAcquire(weight dag.Metric) bool {
 }
 
 func (s *DataSemaphore) tryAcquire(metric dag.Metric) bool {
+	println("tryAcquire", s.processing.String(), metric.String())
 	tmp := s.processing
 	tmp.Num += metric.Num
 	tmp.Size += metric.Size
@@ -68,6 +69,7 @@ func (s *DataSemaphore) Release(weight dag.Metric) {
 		s.processing.Num -= weight.Num
 		s.processing.Size -= weight.Size
 	}
+	println("released", s.processing.String(), weight.String())
 	s.cond.Broadcast()
 }
 
